@@ -11,6 +11,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
 
   <style>
     :root {
@@ -937,10 +938,8 @@
 
 <div class="app-container">
 
-  <!-- كبسولة الإشعار المخصصة (Toast) -->
   <div id="toast-msg" class="app-toast"></div>
 
-  <!-- عارض الصور المكبرة -->
   <div id="image-viewer" class="image-viewer-overlay" onclick="closeImageViewer()">
     <button class="viewer-close-btn" onclick="closeImageViewer()">✕</button>
     <img id="image-viewer-img" class="viewer-image" src="" alt="Enlarged Image" onclick="event.stopPropagation()">
@@ -1144,7 +1143,6 @@
     </div>
   </div>
 
-  <!-- نافذة خيارات الرسالة -->
   <div id="message-options-modal" class="modal-overlay" onclick="closeMsgOptions(event)">
     <div class="msg-action-sheet" onclick="event.stopPropagation()">
       <button class="action-sheet-btn" onclick="executeReplyFromMenu()" data-i18n="reply_msg_action">الرد على الرسالة</button>
@@ -1512,7 +1510,6 @@
     currentUser = null;
   }
 
-  /* نظام إدارة التنقل والرجوع بزر الهاتف (History API) */
   let currentActiveViewId = 'view-login';
 
   function navigate(viewId, pushToHistory = true) {
@@ -1532,7 +1529,6 @@
   }
 
   window.addEventListener('popstate', (e) => {
-    // 1. إغلاق عرض الصورة المكبرة إن كان مفتوحاً
     const viewer = document.getElementById('image-viewer');
     if (viewer && viewer.classList.contains('active')) {
       closeImageViewer();
@@ -1540,7 +1536,6 @@
       return;
     }
 
-    // 2. إغلاق نافذة خيارات الرسالة إن كانت مفتوحة
     const modal = document.getElementById('message-options-modal');
     if (modal && modal.classList.contains('active')) {
       closeMsgOptions();
@@ -1548,7 +1543,6 @@
       return;
     }
 
-    // 3. إغلاق قائمة الإيموجي أو قائمة المحادثة إن كانت مفتوحة
     const picker = document.getElementById('emoji-picker');
     if (picker && picker.style.display === 'grid') {
       picker.style.display = 'none';
@@ -1556,7 +1550,6 @@
       return;
     }
 
-    // 4. إيقاف مستمعي المحادثة عند الرجوع منها
     if (currentActiveViewId === 'view-chat') {
       cleanupChatState();
     }
@@ -1578,6 +1571,7 @@
 
     if (currentUser) {
       initUserPresence();
+      initPushNotifications();
       window.history.replaceState({ view: 'view-main' }, "");
       navigate('view-main', false);
       loadMainChats();
@@ -1587,6 +1581,39 @@
       navigate('view-login', false);
     }
   });
+
+  /* دالة تفعيل واستخراج FCM Token وتخزينه في حساب المستخدم */
+  function initPushNotifications() {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || typeof firebase === 'undefined' || !firebase.messaging) {
+      return;
+    }
+
+    navigator.serviceWorker.register('./firebase-messaging-sw.js')
+      .then((registration) => {
+        const messaging = firebase.messaging();
+        messaging.useServiceWorker(registration);
+
+        return Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            return messaging.getToken({
+              vapidKey: 'BMrwASR2xegHxy1tdV9G9YWiWITMobTcDlmKFz903tmtHh3lcKPmvup3stTNy3EbToU7sZPZIPRx-nJrbPIaenQ'
+            });
+          }
+        });
+      })
+      .then((token) => {
+        if (token && currentUser && db) {
+          db.ref('users/' + currentUser.username + '/fcmToken').set(token);
+          currentUser.fcmToken = token;
+          try {
+            localStorage.setItem('chat_current_user', JSON.stringify(currentUser));
+          } catch(e){}
+        }
+      })
+      .catch((err) => {
+        console.log("FCM Registration:", err);
+      });
+  }
 
   function initUserPresence() {
     if (!db || !currentUser) return;
@@ -1665,6 +1692,13 @@
             msg.className = "msg-error";
             msg.textContent = error.message;
           } else {
+            // إرسال تنبيه في قاعدة البيانات بانضمام مستخدم جديد
+            db.ref('notifications/broadcast').push({
+              title: "زائر جديد 👋",
+              body: `انضم ${name} إلى تطبيق الدردشة الآن!`,
+              timestamp: Date.now()
+            });
+
             msg.className = "msg-success";
             msg.textContent = getTranslation("account_created_success");
             setTimeout(() => {
@@ -1698,6 +1732,7 @@
           localStorage.setItem('chat_current_user', JSON.stringify(currentUser));
         } catch(e) {}
         initUserPresence();
+        initPushNotifications();
         msg.textContent = "";
         window.history.replaceState({ view: 'view-main' }, "");
         navigate('view-main', false);
@@ -2388,6 +2423,15 @@
       }
 
       db.ref('messages').push(newMsg);
+
+      // حفظ طلب إشعار في قاعدة البيانات
+      db.ref('notifications/requests').push({
+        toUsername: activeChatUser.username,
+        fromName: currentUser.name,
+        body: text,
+        timestamp: Date.now()
+      });
+
       input.value = '';
       cancelReply();
       document.getElementById('emoji-picker').style.display = 'none';
@@ -2417,6 +2461,15 @@
         }
 
         db.ref('messages').push(newMsg);
+
+        // حفظ طلب إشعار للصورة
+        db.ref('notifications/requests').push({
+          toUsername: activeChatUser.username,
+          fromName: currentUser.name,
+          body: getTranslation("photo_msg_preview"),
+          timestamp: Date.now()
+        });
+
         cancelReply();
         event.target.value = '';
       });

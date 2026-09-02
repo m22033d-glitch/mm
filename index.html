@@ -1,0 +1,2604 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>تطبيق الدردشة</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #070a13;
+      --bg-surface: #0f172a;
+      --card-bg: #131d31;
+      --card-border: rgba(0, 210, 255, 0.15);
+      
+      --neon-blue: #00d2ff;
+      --neon-blue-glow: rgba(0, 210, 255, 0.35);
+      --electric-blue: #2563eb;
+      
+      --neon-red: #ff0055;
+      --neon-red-glow: rgba(255, 0, 85, 0.4);
+      --crimson-red: #e11d48;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --chat-bg: #0b0f19;
+      --chat-bubble-me: linear-gradient(135deg, #1e3a8a 0%, #0369a1 100%);
+      --chat-bubble-other: #182234;
+      --chat-bubble-border-me: rgba(56, 189, 248, 0.25);
+      --chat-bubble-border-other: rgba(255, 255, 255, 0.07);
+      
+      --ticks-blue: #38bdf8;
+      --ticks-gray: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Tajawal', sans-serif;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    input, textarea {
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
+      user-select: text !important;
+      color: #ffffff !important;
+      caret-color: var(--neon-blue) !important;
+    }
+
+    body {
+      background: radial-gradient(circle at top right, #1e112a 0%, #070a13 50%, #050b14 100%);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 480px;
+      height: 100%;
+      background: var(--bg-dark);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: 0 0 35px rgba(0, 210, 255, 0.15), 0 0 50px rgba(255, 0, 85, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    @media (min-width: 500px) {
+      body {
+        padding: 18px 0;
+        align-items: center;
+      }
+      .app-container {
+        height: 94vh;
+        border-radius: 28px;
+        overflow: hidden;
+        border: 1px solid rgba(0, 210, 255, 0.2);
+      }
+    }
+
+    .view {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: var(--bg-dark);
+      overflow-y: auto;
+    }
+
+    .view.active {
+      display: flex !important;
+    }
+
+    .header {
+      height: 68px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .header h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, #00d2ff, #ff0055);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .header-user-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    [dir="rtl"] .header-user-info { text-align: right; }
+    [dir="ltr"] .header-user-info { text-align: left; }
+
+    .user-status-text {
+      font-size: 0.75rem;
+      color: #38bdf8;
+      font-weight: 700;
+      min-height: 14px;
+    }
+
+    .icon-btn {
+      background: rgba(19, 29, 49, 0.7);
+      border: 1px solid rgba(0, 210, 255, 0.2);
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: var(--neon-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s ease;
+      flex-shrink: 0;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--neon-red);
+      color: var(--neon-red);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+
+    .search-box-container {
+      padding: 10px 16px;
+      background: rgba(15, 23, 42, 0.7);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      background: #131d31;
+      border: 1px solid rgba(0, 210, 255, 0.2);
+      border-radius: 20px;
+      padding: 9px 16px;
+      font-size: 0.9rem;
+      color: #ffffff;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.25);
+    }
+
+    .bottom-nav {
+      height: 64px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin-top: auto;
+      z-index: 10;
+    }
+
+    .nav-item {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .nav-item.active {
+      color: var(--neon-blue);
+      transform: translateY(-2px);
+    }
+
+    .form-container {
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      justify-content: center;
+      flex-grow: 1;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--neon-blue);
+    }
+
+    .input-field {
+      padding: 14px 16px;
+      border: 1.5px solid rgba(0, 210, 255, 0.2);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #ffffff !important;
+      outline: none;
+      font-size: 1.05rem;
+      transition: all 0.25s ease;
+    }
+
+    .input-field:focus {
+      border-color: var(--neon-red);
+      box-shadow: 0 0 10px rgba(255, 0, 85, 0.25);
+    }
+
+    .btn {
+      padding: 14px;
+      background: linear-gradient(90deg, var(--electric-blue) 0%, var(--neon-red) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3);
+    }
+
+    .btn:hover {
+      box-shadow: 0 4px 20px rgba(0, 210, 255, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--neon-blue);
+      border: 1.5px solid var(--neon-blue);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0, 210, 255, 0.1);
+      color: #fff;
+      border-color: var(--neon-red);
+    }
+
+    .msg-error {
+      color: var(--neon-red);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .msg-success {
+      color: var(--neon-blue);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .current-pin-box {
+      background: rgba(19, 29, 49, 0.7);
+      border: 1.5px solid rgba(0, 210, 255, 0.25);
+      border-radius: 16px;
+      padding: 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .current-pin-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .current-pin-value {
+      font-size: 1.5rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: var(--neon-blue);
+      text-shadow: 0 0 10px var(--neon-blue-glow);
+    }
+
+    .list-container {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      position: relative;
+      background: rgba(19, 29, 49, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      transition: all 0.25s ease;
+    }
+
+    .list-item:hover, .list-item:active {
+      background: rgba(19, 29, 49, 0.9);
+      border-color: rgba(0, 210, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .avatar-wrapper {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+    }
+
+    .avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      background: var(--card-bg);
+      object-fit: cover;
+      border: 2px solid var(--neon-blue);
+    }
+
+    .unread-badge {
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      background: var(--neon-red);
+      color: white;
+      border-radius: 10px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      min-width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      border: 2px solid var(--bg-dark);
+    }
+
+    .new-user-badge {
+      background: linear-gradient(135deg, #ff0055 0%, #e11d48 100%);
+      color: #ffffff;
+      font-size: 0.68rem;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .item-info {
+      flex-grow: 1;
+      overflow: hidden;
+    }
+
+    .item-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0px;
+    }
+
+    .item-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .item-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 3px;
+    }
+
+    .settings-list {
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 10px;
+    }
+
+    .settings-item {
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--card-bg);
+      border: 1px solid rgba(0, 210, 255, 0.1);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      transition: all 0.25s ease;
+    }
+
+    .settings-item:hover {
+      border-color: var(--neon-red);
+      transform: translateX(-4px);
+    }
+
+    .chat-messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--chat-bg);
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      word-break: break-word;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+      transition: transform 0.1s ease;
+    }
+
+    .message:active {
+      transform: scale(0.98);
+    }
+
+    .message.sent {
+      align-self: flex-end;
+      background: var(--chat-bubble-me);
+      color: #f1f5f9;
+      border: 1px solid var(--chat-bubble-border-me);
+    }
+
+    [dir="rtl"] .message.sent { border-bottom-left-radius: 4px; }
+    [dir="ltr"] .message.sent { border-bottom-right-radius: 4px; }
+
+    .message.received {
+      align-self: flex-start;
+      background: var(--chat-bubble-other);
+      color: #e2e8f0;
+      border: 1px solid var(--chat-bubble-border-other);
+    }
+
+    [dir="rtl"] .message.received { border-bottom-right-radius: 4px; }
+    [dir="ltr"] .message.received { border-bottom-left-radius: 4px; }
+
+    .message.deleted {
+      font-style: italic;
+      color: var(--text-muted);
+      background: rgba(24, 34, 52, 0.4);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+    }
+
+    .message-img {
+      max-width: 250px;
+      max-height: 300px;
+      width: 100%;
+      border-radius: 12px;
+      object-fit: cover;
+      margin-bottom: 4px;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: opacity 0.2s;
+    }
+
+    .message-img:hover {
+      opacity: 0.9;
+    }
+
+    .message-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 5px;
+      margin-top: 4px;
+      font-size: 0.68rem;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .ticks {
+      font-size: 0.85rem;
+      font-weight: bold;
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+
+    .ticks.single { color: var(--ticks-gray); }
+    .ticks.double-gray { color: var(--ticks-gray); }
+    .ticks.double-blue { color: var(--ticks-blue); }
+
+    .quote-box {
+      background: rgba(0, 0, 0, 0.25);
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+    }
+
+    [dir="rtl"] .quote-box { border-right: 3px solid #38bdf8; }
+    [dir="ltr"] .quote-box { border-left: 3px solid #38bdf8; }
+
+    .quote-sender {
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .quote-text {
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+    }
+
+    .reply-preview-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      background: #111827;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    [dir="rtl"] .reply-preview-bar { border-right: 4px solid #38bdf8; }
+    [dir="ltr"] .reply-preview-bar { border-left: 4px solid #38bdf8; }
+
+    .reply-preview-bar.active {
+      display: flex;
+    }
+
+    .chat-input-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: #0d1322;
+      position: relative;
+    }
+
+    .chat-input-area .input-field {
+      border-radius: 24px;
+      padding: 10px 16px;
+      background: #131b2e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #f8fafc !important;
+      font-size: 0.95rem;
+    }
+
+    .chat-input-area .input-field:focus {
+      border-color: #38bdf8;
+      box-shadow: none;
+    }
+
+    .send-circle-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #ffffff;
+      box-shadow: 0 3px 12px rgba(3, 105, 161, 0.4);
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .send-circle-btn:active {
+      transform: scale(0.9);
+    }
+
+    .send-circle-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    [dir="rtl"] .send-circle-btn svg {
+      transform: scaleX(-1);
+    }
+
+    .attach-btn {
+      width: 40px;
+      height: 40px;
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #94a3b8;
+      transition: color 0.2s ease, transform 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .attach-btn:hover {
+      color: var(--neon-blue);
+    }
+
+    .attach-btn:active {
+      transform: scale(0.9);
+    }
+
+    .emoji-picker-container {
+      position: absolute;
+      bottom: 75px;
+      right: 16px;
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      padding: 12px;
+      display: none;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+    }
+
+    .emoji-item {
+      cursor: pointer;
+      font-size: 1.4rem;
+      padding: 4px;
+      text-align: center;
+      transition: transform 0.1s ease;
+    }
+
+    .emoji-item:active {
+      transform: scale(1.2);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: 60px;
+      background: #131d31;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+      display: none;
+      flex-direction: column;
+      z-index: 100;
+      min-width: 150px;
+      overflow: hidden;
+    }
+
+    [dir="rtl"] .dropdown-menu { left: 16px; }
+    [dir="ltr"] .dropdown-menu { right: 16px; }
+
+    .dropdown-menu.active {
+      display: flex;
+    }
+
+    .dropdown-item {
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: var(--text-main);
+      width: 100%;
+      transition: background 0.15s ease;
+    }
+
+    [dir="rtl"] .dropdown-item { text-align: right; }
+    [dir="ltr"] .dropdown-item { text-align: left; }
+
+    .dropdown-item:active {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .blocked-notice {
+      background: rgba(239, 68, 68, 0.12);
+      color: #fca5a5;
+      border-bottom: 1px solid rgba(239, 68, 68, 0.25);
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 0.88rem;
+      font-weight: 700;
+      display: none;
+      line-height: 1.4;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(5, 7, 13, 0.7);
+      backdrop-filter: blur(6px);
+      display: none;
+      justify-content: center;
+      align-items: flex-end;
+      z-index: 1000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .msg-action-sheet {
+      background: #0f172a;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 24px 24px 0 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .action-sheet-btn {
+      padding: 15px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: #1e293b;
+      color: var(--text-main);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .action-sheet-btn:active {
+      transform: scale(0.98);
+    }
+
+    .action-sheet-btn.danger {
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .action-sheet-btn.cancel {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      margin-top: 4px;
+    }
+
+    .back-btn-icon {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+
+    [dir="ltr"] .back-btn-icon {
+      transform: rotate(180deg);
+    }
+
+    .setup-modal-content {
+      background: #0f172a;
+      width: 90%;
+      max-width: 420px;
+      border-radius: 24px;
+      padding: 22px;
+      border: 1.5px solid var(--neon-blue);
+      box-shadow: 0 0 30px rgba(0, 210, 255, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 14px;
+      animation: popIn 0.3s ease-out;
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .app-toast {
+      position: absolute;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #0d1b2a;
+      color: #ffffff;
+      padding: 12px 30px;
+      border-radius: 35px;
+      border: 1.8px solid var(--neon-blue);
+      box-shadow: 0 0 20px rgba(0, 210, 255, 0.45);
+      font-size: 0.95rem;
+      font-weight: 700;
+      white-space: nowrap;
+      z-index: 99999;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .app-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .image-viewer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.94);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 999999;
+      backdrop-filter: blur(10px);
+    }
+
+    .image-viewer-overlay.active {
+      display: flex;
+    }
+
+    .viewer-close-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .viewer-close-btn:hover {
+      background: rgba(255, 0, 85, 0.6);
+      border-color: var(--neon-red);
+    }
+
+    .viewer-image {
+      max-width: 92vw;
+      max-height: 85vh;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+      animation: zoomIn 0.25s ease-out;
+    }
+
+    @keyframes zoomIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body oncontextmenu="return false;">
+
+<div class="app-container">
+
+  <!-- كبسولة الإشعار المخصصة (Toast) -->
+  <div id="toast-msg" class="app-toast"></div>
+
+  <!-- عارض الصور المكبرة -->
+  <div id="image-viewer" class="image-viewer-overlay" onclick="closeImageViewer()">
+    <button class="viewer-close-btn" onclick="closeImageViewer()">✕</button>
+    <img id="image-viewer-img" class="viewer-image" src="" alt="Enlarged Image" onclick="event.stopPropagation()">
+  </div>
+
+  <!-- 1. واجهة تسجيل الدخول -->
+  <div id="view-login" class="view active">
+    <div class="header">
+      <button class="icon-btn" onclick="toggleLanguageQuick()" title="Change Language / تغيير اللغة">🌐</button>
+      <h2 data-i18n="login_title">تسجيل الدخول</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container">
+      <div style="text-align: center; margin-bottom: 12px;">
+        <div style="font-size: 3rem; margin-bottom: 6px;">⚡</div>
+        <h3 style="font-size: 1.5rem; font-weight: 900; background: linear-gradient(90deg, var(--neon-blue), var(--neon-red)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" data-i18n="welcome_title">مرحباً بك</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem;" data-i18n="login_desc">أدخل حسابك للبدء بالدردشة الفورية</p>
+      </div>
+      <div class="form-group">
+        <label data-i18n="username_label">اسم المستخدم</label>
+        <input type="text" id="login-username" class="input-field" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label data-i18n="password_label">كلمة السر</label>
+        <input type="password" id="login-password" class="input-field">
+      </div>
+      <p id="login-msg" class="msg-error"></p>
+      <button class="btn" onclick="handleLogin()" data-i18n="login_btn">تسجيل الدخول</button>
+      <button class="btn btn-secondary" onclick="navigate('view-register')" data-i18n="new_account_btn">إنشاء حساب جديد</button>
+    </div>
+  </div>
+
+  <!-- 2. واجهة إنشاء حساب جديد -->
+  <div id="view-register" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="navigate('view-login')"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="register_title">إنشاء حساب</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container">
+      <div class="form-group">
+        <label data-i18n="nickname_label">الاسم المستعار</label>
+        <input type="text" id="reg-name" class="input-field" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label data-i18n="username_rules_label">اسم المستخدم (3 أحرف على الأقل، صغيرة وأرقام فقط)</label>
+        <input type="text" id="reg-username" class="input-field" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label data-i18n="password_label">كلمة السر</label>
+        <input type="password" id="reg-password" class="input-field">
+      </div>
+      <p id="reg-msg" class="msg-error"></p>
+      <button class="btn" onclick="handleRegister()" data-i18n="create_account_btn">إنشاء الحساب</button>
+    </div>
+  </div>
+
+  <!-- 3. الواجهة الرئيسية (المحادثات النشطة) -->
+  <div id="view-main" class="view">
+    <div class="header">
+      <h2 data-i18n="chats_title">دردشتي</h2>
+      <button class="icon-btn" title="المستخدمين" onclick="openUsersList()">👥</button>
+    </div>
+
+    <div class="search-box-container">
+      <input type="text" id="search-chats-input" class="search-input" placeholder="🔍 ابحث في المحادثات..." oninput="filterChats(this.value)">
+    </div>
+
+    <div class="list-container" id="chats-list"></div>
+    <div class="bottom-nav">
+      <button class="nav-item active" onclick="navigate('view-main')">💬</button>
+      <button class="nav-item" onclick="navigate('view-settings')">⚙️</button>
+    </div>
+  </div>
+
+  <!-- نافذة مصغرة للإعداد الأولي -->
+  <div id="initial-setup-modal" class="modal-overlay" style="align-items: center; justify-content: center;">
+    <div class="setup-modal-content">
+      <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--neon-blue);" data-i18n="setup_modal_title">إعداد حسابك الشخصي</h3>
+      
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <img id="setup-avatar-preview" 
+             src="" 
+             alt=""
+             onerror="setDefaultAvatar(this)"
+             style="width: 105px; height: 105px; border-radius: 50%; object-fit: cover; border: 3px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3); background: var(--card-bg);">
+        
+        <label style="cursor: pointer; font-size: 0.88rem; color: var(--neon-red); margin-top: 10px; font-weight: 800;">
+          <span data-i18n="pick_image_btn">📁 اختيار صورة من الجهاز</span>
+          <input type="file" id="setup-file-input" accept="image/*" style="display: none;" onchange="handleSetupFileUpload(event)">
+        </label>
+      </div>
+
+      <p style="color: var(--text-muted); font-size: 0.82rem; line-height: 1.4;" data-i18n="pin_setup_desc">عيّن رمزاً سرياً لمحادثتك لمنع أي شخص من مراسلتك دون إدخاله:</p>
+      
+      <div class="form-group" style="width: 100%;">
+        <input type="text" id="setup-pin-input" class="input-field" placeholder="رمز الحماية (PIN)" style="text-align: center; font-size: 1.1rem; letter-spacing: 2px;">
+      </div>
+
+      <button class="btn" style="width: 100%;" onclick="saveInitialSetup()" data-i18n="save_changes_btn">حفظ المعلومات</button>
+    </div>
+  </div>
+
+  <!-- 4. قائمة الأشخاص -->
+  <div id="view-users" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="users_title">المستخدمين</h2>
+      <div style="width:40px;"></div>
+    </div>
+
+    <div class="search-box-container">
+      <input type="text" id="search-users-input" class="search-input" placeholder="🔍 ابحث بالاسم المستعار..." oninput="filterUsers(this.value)">
+    </div>
+
+    <div class="list-container" id="all-users-list"></div>
+  </div>
+
+  <!-- 5. نافذة رمز PIN -->
+  <div id="view-pin-prompt" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="security_pin_title">رمز الأمان</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container">
+      <div style="text-align: center; margin-bottom: 8px;">
+        <div style="font-size: 2.8rem; margin-bottom: 6px;">🔒</div>
+        <p style="color: var(--text-muted); font-size: 0.95rem;" data-i18n="enter_pin_prompt">هذا المستخدم مفعل رمز الحماية، أدخل الرمز للمراسلة:</p>
+      </div>
+      <div class="form-group">
+        <label data-i18n="pin_code_label">رمز التحقق</label>
+        <input type="password" id="target-pin" class="input-field" style="text-align: center; letter-spacing: 8px; font-size: 1.3rem;">
+      </div>
+      <p id="pin-prompt-msg" class="msg-error"></p>
+      <button class="btn" onclick="verifyTargetPin()" data-i18n="verify_and_chat_btn">تحقق وبدء المحادثة</button>
+    </div>
+  </div>
+
+  <!-- 6. شاشة المحادثة -->
+  <div id="view-chat" class="view">
+    <div class="header">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+        <button class="icon-btn" onclick="toggleChatMenu()">⋮</button>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="header-user-info">
+          <h2 id="chat-target-name" style="background:none; -webkit-text-fill-color: initial; color:#f8fafc;">اسم المستخدم</h2>
+          <span id="chat-target-status" class="user-status-text"></span>
+        </div>
+        <img id="chat-target-img" class="avatar" style="width:42px; height:42px; border-color:#0284c7;" src="" onerror="setDefaultAvatar(this)">
+      </div>
+
+      <div id="chat-dropdown" class="dropdown-menu">
+        <button class="dropdown-item" id="btn-block-toggle" onclick="toggleBlockUser()" data-i18n="block_user_action">حظر المستخدم</button>
+      </div>
+    </div>
+
+    <div id="blocked-banner" class="blocked-notice"></div>
+
+    <div class="chat-messages" id="messages-container"></div>
+    
+    <div id="reply-bar" class="reply-preview-bar">
+      <div style="overflow:hidden;">
+        <div id="reply-to-user" style="font-size:0.8rem; font-weight:700; color:#38bdf8;"></div>
+        <div id="reply-to-text" style="font-size:0.8rem; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;"></div>
+      </div>
+      <button class="icon-btn" style="width:28px; height:28px; font-size:0.85rem; border:none; background:transparent;" onclick="cancelReply()">✕</button>
+    </div>
+
+    <div class="emoji-picker-container" id="emoji-picker">
+      <span class="emoji-item" onclick="insertEmoji('😊')">😊</span>
+      <span class="emoji-item" onclick="insertEmoji('😂')">😂</span>
+      <span class="emoji-item" onclick="insertEmoji('❤️')">❤️</span>
+      <span class="emoji-item" onclick="insertEmoji('👍')">👍</span>
+      <span class="emoji-item" onclick="insertEmoji('🔥')">🔥</span>
+      <span class="emoji-item" onclick="insertEmoji('🙏')">🙏</span>
+      <span class="emoji-item" onclick="insertEmoji('🌹')">🌹</span>
+      <span class="emoji-item" onclick="insertEmoji('👋')">👋</span>
+    </div>
+
+    <div class="chat-input-area" id="input-bar-area">
+      <button class="icon-btn" style="border:none; background:transparent; width:34px; height:34px;" onclick="toggleEmojiPicker()">😀</button>
+      
+      <input type="text" id="chat-input-text" class="input-field" style="flex-grow: 1;" data-i18n-ph="type_message_ph" placeholder="اكتب رسالتك..." oninput="handleTyping()" onkeydown="if(event.key==='Enter') sendMessage()">
+
+      <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="handleChatImageSelected(event)">
+      <button class="attach-btn" title="إرفاق صورة" onclick="document.getElementById('chat-image-input').click()">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+        </svg>
+      </button>
+
+      <button class="send-circle-btn" onclick="sendMessage()" title="إرسال">
+        <svg viewBox="0 0 24 24">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- نافذة خيارات الرسالة -->
+  <div id="message-options-modal" class="modal-overlay" onclick="closeMsgOptions(event)">
+    <div class="msg-action-sheet" onclick="event.stopPropagation()">
+      <button class="action-sheet-btn" onclick="executeReplyFromMenu()" data-i18n="reply_msg_action">الرد على الرسالة</button>
+      <button class="action-sheet-btn danger" onclick="executeDeleteForMe()" data-i18n="delete_for_me_action">حذف لدي أنا فقط</button>
+      <button class="action-sheet-btn danger" id="btn-delete-everyone" onclick="executeDeleteForEveryone()" data-i18n="delete_for_all_action">حذف لدى الجميع</button>
+      <button class="action-sheet-btn cancel" onclick="closeMsgOptions()" data-i18n="cancel_action">إلغاء</button>
+    </div>
+  </div>
+
+  <!-- 7. واجهة الإعدادات -->
+  <div id="view-settings" class="view">
+    <div class="header">
+      <h2 data-i18n="settings_title">الإعدادات</h2>
+    </div>
+    <div class="settings-list">
+      <div class="settings-item" onclick="navigate('view-set-profile')">
+        <span data-i18n="edit_profile_menu">تعديل الملف الشخصي</span>
+        <span style="color:var(--neon-blue);"><span class="back-btn-icon">←</span></span>
+      </div>
+      <div class="settings-item" onclick="navigate('view-set-username')">
+        <span data-i18n="edit_username_menu">تعديل اسم المستخدم</span>
+        <span style="color:var(--neon-blue);"><span class="back-btn-icon">←</span></span>
+      </div>
+      <div class="settings-item" onclick="navigate('view-set-pin')">
+        <span data-i18n="edit_pin_menu">رمز الحماية (PIN)</span>
+        <span style="color:var(--neon-blue);"><span class="back-btn-icon">←</span></span>
+      </div>
+      <div class="settings-item" onclick="navigate('view-set-app')">
+        <span data-i18n="app_settings_menu">إعدادات التطبيق واللغة</span>
+        <span style="color:var(--neon-blue);"><span class="back-btn-icon">←</span></span>
+      </div>
+      <div class="settings-item" style="color:var(--neon-red); border-color: rgba(255, 0, 85, 0.4);" onclick="logout()">
+        <span data-i18n="logout_menu">تسجيل الخروج</span>
+      </div>
+    </div>
+    <div class="bottom-nav">
+      <button class="nav-item" onclick="navigate('view-main')">💬</button>
+      <button class="nav-item active" onclick="navigate('view-settings')">⚙️</button>
+    </div>
+  </div>
+
+  <!-- 7.1 تعديل الملف الشخصي -->
+  <div id="view-set-profile" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="edit_profile_title">الملف الشخصي</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container" style="align-items: center;">
+      <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px;">
+        <img id="profile-preview-img" 
+             src="" 
+             alt=""
+             onerror="setDefaultAvatar(this)"
+             style="width: 130px; height: 130px; border-radius: 36px; object-fit: cover; border: 3px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0, 210, 255, 0.25); background: var(--card-bg);">
+        
+        <label style="cursor: pointer; font-size: 0.95rem; color: var(--neon-red); margin-top: 14px; font-weight: 800; text-shadow: 0 0 8px var(--neon-red-glow);">
+          <span data-i18n="pick_image_btn">📁 اختيار صورة من الجهاز</span>
+          <input type="file" id="profile-file-input" accept="image/*" style="display: none;" onchange="handleFileUpload(event)">
+        </label>
+      </div>
+
+      <div class="form-group" style="width: 100%;">
+        <label data-i18n="nickname_label">الاسم المستعار</label>
+        <input type="text" id="edit-display-name" class="input-field">
+      </div>
+      
+      <button class="btn" style="width: 100%; margin-top: 10px;" onclick="saveProfile()" data-i18n="save_changes_btn">حفظ التعديلات</button>
+    </div>
+  </div>
+
+  <!-- 7.2 اسم المستخدم -->
+  <div id="view-set-username" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="edit_username_title">اسم المستخدم</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container">
+      <div class="form-group">
+        <label data-i18n="new_username_label">اسم المستخدم الجديد</label>
+        <input type="text" id="edit-username-input" class="input-field">
+      </div>
+      <p id="edit-username-msg" class="msg-error"></p>
+      <button class="btn" onclick="saveUsername()" data-i18n="save_username_btn">حفظ اسم المستخدم</button>
+    </div>
+  </div>
+
+  <!-- 7.3 رمز PIN -->
+  <div id="view-set-pin" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="security_pin_title">رمز التحقق</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container">
+      <div class="current-pin-box">
+        <span class="current-pin-label" data-i18n="current_pin_label">رمز التحقق الحالي الخاص بك:</span>
+        <span id="current-pin-display" class="current-pin-value">----</span>
+      </div>
+
+      <p style="color: var(--text-muted); font-size: 0.9rem;" data-i18n="pin_setup_desc">عيّن أو عدّل رمزاً سرياً لمحادثتك لمنع أي شخص من مراسلتك دون إدخاله:</p>
+      <div class="form-group">
+        <label data-i18n="new_pin_label">الرمز الجديد (PIN)</label>
+        <input type="text" id="edit-pin-input" class="input-field">
+      </div>
+      <button class="btn" onclick="savePin()" data-i18n="save_pin_btn">حفظ الرمز</button>
+    </div>
+  </div>
+
+  <!-- 7.4 إعدادات التطبيق واللغة -->
+  <div id="view-set-app" class="view">
+    <div class="header">
+      <button class="icon-btn" onclick="window.history.back()"><span class="back-btn-icon">➔</span></button>
+      <h2 data-i18n="app_settings_title">الإعدادات</h2>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="form-container">
+      <div class="form-group">
+        <label data-i18n="language_label">اللغة</label>
+        <select id="lang-select" class="input-field">
+          <option value="ar">العربية</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <button class="btn" onclick="saveAppSettings()" data-i18n="save_btn">حفظ</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const translations = {
+    ar: {
+      login_title: "تسجيل الدخول",
+      welcome_title: "مرحباً بك",
+      login_desc: "أدخل حسابك للبدء بالدردشة الفورية",
+      username_label: "اسم المستخدم",
+      password_label: "كلمة السر",
+      login_btn: "تسجيل الدخول",
+      new_account_btn: "إنشاء حساب جديد",
+      register_title: "إنشاء حساب",
+      nickname_label: "الاسم المستعار",
+      username_rules_label: "اسم المستخدم (3 أحرف على الأقل، صغيرة وأرقام فقط)",
+      create_account_btn: "إنشاء الحساب",
+      chats_title: "دردشتي",
+      users_title: "المستخدمين",
+      security_pin_title: "رمز التحقق",
+      enter_pin_prompt: "هذا المستخدم مفعل رمز الحماية، أدخل الرمز للمراسلة:",
+      pin_code_label: "رمز التحقق",
+      verify_and_chat_btn: "تحقق وبدء المحادثة",
+      block_user_action: "حظر المستخدم",
+      unblock_user_action: "إلغاء حظر المستخدم",
+      blocked_by_them_msg: "تم حظرك بواسطة هذا المستخدم، لا يمكنك إرسال أو استقبال الرسائل معه.",
+      blocked_by_me_msg: "لقد قمت بحظر هذا المستخدم. لا يمكنك مراسلته إلا بعد إلغاء الحظر.",
+      type_message_ph: "اكتب رسالتك...",
+      reply_msg_action: "الرد على الرسالة",
+      delete_for_me_action: "حذف لدي أنا فقط",
+      delete_for_all_action: "حذف لدى الجميع",
+      cancel_action: "إلغاء",
+      settings_title: "الإعدادات",
+      edit_profile_menu: "تعديل الملف الشخصي",
+      edit_username_menu: "تعديل اسم المستخدم",
+      edit_pin_menu: "رمز الحماية (PIN)",
+      app_settings_menu: "إعدادات التطبيق واللغة",
+      logout_menu: "تسجيل الخروج",
+      edit_profile_title: "الملف الشخصي",
+      pick_image_btn: "📁 اختيار صورة من الجهاز",
+      save_changes_btn: "حفظ التعديلات",
+      edit_username_title: "اسم المستخدم",
+      new_username_label: "اسم المستخدم الجديد",
+      save_username_btn: "حفظ اسم المستخدم",
+      current_pin_label: "رمز التحقق الحالي الخاص بك:",
+      pin_setup_desc: "عيّن رمزاً سرياً لمحادثتك لمنع أي شخص من مراسلتك دون إدخاله:",
+      new_pin_label: "الرمز الجديد (PIN)",
+      save_pin_btn: "حفظ الرمز",
+      app_settings_title: "إعدادات التطبيق",
+      language_label: "اللغة",
+      save_btn: "حفظ",
+      no_chats: "لا توجد محادثات نشطة حالياً. اضغط على أيقونة 👥 للبدء.",
+      no_users: "لا يوجد مستخدمون آخرون مسجلون.",
+      loading: "جاري التحميل...",
+      typing_status: "يكتب الآن...",
+      online_status: "متصل الآن",
+      deleted_msg_text: "🚫 تم حذف هذه الرسالة",
+      reply_to_prefix: "رد على: ",
+      pin_empty_display: "لا يوجد رمز",
+      pin_wrong_alert: "رمز التحقق غير صحيح!",
+      fill_all_fields: "الرجاء إدخال جميع الحقول.",
+      username_exists: "اسم المستخدم مستخدم من قبل أو غير فعال.",
+      account_created_success: "تم إنشاء الحساب بنجاح! جاري تحويلك...",
+      account_not_found: "الحساب غير موجود أو كلمة المرور خاطئة.",
+      settings_saved_alert: "تم حفظ الإعدادات بنجاح.",
+      pin_saved_alert: "تم حفظ رمز التحقق بنجاح.",
+      profile_saved_alert: "تم حفظ البيانات بنجاح.",
+      user_blocked_alert: "تم حظر ",
+      user_unblocked_alert: "تم إلغاء حظر ",
+      setup_modal_title: "إعداد حسابك الشخصي",
+      photo_msg_preview: "📷 صورة",
+      badge_new: "جديد"
+    },
+    en: {
+      login_title: "Login",
+      welcome_title: "Welcome Back",
+      login_desc: "Enter your account to start instant chatting",
+      username_label: "Username",
+      password_label: "Password",
+      login_btn: "Sign In",
+      new_account_btn: "Create New Account",
+      register_title: "Create Account",
+      nickname_label: "Display Name",
+      username_rules_label: "Username (min 3 chars, lowercase & numbers only)",
+      create_account_btn: "Create Account",
+      chats_title: "My Chats",
+      users_title: "Users",
+      security_pin_title: "Security PIN",
+      enter_pin_prompt: "This user has security PIN enabled. Enter it to chat:",
+      pin_code_label: "PIN Code",
+      verify_and_chat_btn: "Verify & Start Chat",
+      block_user_action: "Block User",
+      unblock_user_action: "Unblock User",
+      blocked_by_them_msg: "You have been blocked by this user. You cannot send or receive messages.",
+      blocked_by_me_msg: "You blocked this user. Unblock to chat.",
+      type_message_ph: "Type a message...",
+      reply_msg_action: "Reply to Message",
+      delete_for_me_action: "Delete for me only",
+      delete_for_all_action: "Delete for everyone",
+      cancel_action: "Cancel",
+      settings_title: "Settings",
+      edit_profile_menu: "Edit Profile",
+      edit_username_menu: "Edit Username",
+      edit_pin_menu: "Security PIN",
+      app_settings_menu: "App Settings & Language",
+      logout_menu: "Sign Out",
+      edit_profile_title: "Profile",
+      pick_image_btn: "📁 Choose image from device",
+      save_changes_btn: "Save Changes",
+      edit_username_title: "Username",
+      new_username_label: "New Username",
+      save_username_btn: "Save Username",
+      current_pin_label: "Your current security PIN:",
+      pin_setup_desc: "Set or update your security PIN to prevent unauthorized chat requests:",
+      new_pin_label: "New PIN Code",
+      save_pin_btn: "Save PIN",
+      app_settings_title: "App Settings",
+      language_label: "Language",
+      save_btn: "Save",
+      no_chats: "No active chats yet. Click 👥 icon to start chatting.",
+      no_users: "No other registered users found.",
+      loading: "Loading...",
+      typing_status: "typing...",
+      online_status: "Online",
+      deleted_msg_text: "🚫 This message was deleted",
+      reply_to_prefix: "Reply to: ",
+      pin_empty_display: "No PIN set",
+      pin_wrong_alert: "Incorrect Security PIN!",
+      fill_all_fields: "Please fill in all fields.",
+      username_exists: "Username already taken or invalid.",
+      account_created_success: "Account created successfully! Redirecting...",
+      account_not_found: "Account not found or password incorrect.",
+      settings_saved_alert: "Settings updated successfully.",
+      pin_saved_alert: "Security PIN saved successfully.",
+      profile_saved_alert: "Profile saved successfully.",
+      user_blocked_alert: "Blocked ",
+      user_unblocked_alert: "Unblocked ",
+      setup_modal_title: "Setup Your Profile",
+      photo_msg_preview: "📷 Photo",
+      badge_new: "NEW"
+    }
+  };
+
+  let currentLang = 'ar';
+
+  let toastTimeout = null;
+  function showToast(message) {
+    const toast = document.getElementById('toast-msg');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toast.classList.remove('show');
+    }, 2500);
+  }
+
+  function applyLanguage(lang) {
+    currentLang = (lang === 'en') ? 'en' : 'ar';
+    document.documentElement.lang = currentLang;
+    document.documentElement.dir = (currentLang === 'ar') ? 'rtl' : 'ltr';
+
+    const t = translations[currentLang];
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key]) el.textContent = t[key];
+    });
+
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.getAttribute('data-i18n-ph');
+      if (t[key]) el.placeholder = t[key];
+    });
+
+    const langSelect = document.getElementById('lang-select');
+    if (langSelect) langSelect.value = currentLang;
+  }
+
+  function toggleLanguageQuick() {
+    const nextLang = (currentLang === 'ar') ? 'en' : 'ar';
+    try {
+      localStorage.setItem('app_lang', nextLang);
+    } catch(e){}
+    applyLanguage(nextLang);
+  }
+
+  function getTranslation(key) {
+    return translations[currentLang][key] || key;
+  }
+
+  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338bdf8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
+  function setDefaultAvatar(imgElement) {
+    imgElement.src = DEFAULT_AVATAR;
+  }
+
+  let db = null;
+  let currentUser = null;
+  let activeChatUser = null;
+  let tempTargetUser = null;
+  let chatListener = null;
+  let statusListener = null;
+  let typingListener = null;
+  let blockListenerMe = null;
+  let blockListenerThem = null;
+  let typingTimeout = null;
+  let replyingToMessage = null;
+  let selectedMessageData = null;
+  let tempProfileAvatar = "";
+  let tempSetupAvatar = "";
+
+  let allRegisteredUsersList = [];
+  let allActiveChatsList = [];
+
+  try {
+    const firebaseConfig = {
+      apiKey: "AIzaSyD9w5hDMasFdQYFmxOXTAo4-B-ZF4PkIaA",
+      authDomain: "chat-b3ade.firebaseapp.com",
+      databaseURL: "https://chat-b3ade-default-rtdb.firebaseio.com",
+      projectId: "chat-b3ade",
+      storageBucket: "chat-b3ade.firebasestorage.app",
+      messagingSenderId: "984781783358",
+      appId: "1:984781783358:web:8e6d6c90329112e6136c6f",
+      measurementId: "G-MWZHPMQXGQ"
+    };
+    if (typeof firebase !== 'undefined') {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    }
+  } catch (e) {
+    console.warn("Firebase Init:", e);
+  }
+
+  try {
+    currentUser = JSON.parse(localStorage.getItem('chat_current_user')) || null;
+  } catch(e) {
+    currentUser = null;
+  }
+
+  /* نظام إدارة التنقل والرجوع بزر الهاتف (History API) */
+  let currentActiveViewId = 'view-login';
+
+  function navigate(viewId, pushToHistory = true) {
+    if (pushToHistory && viewId !== currentActiveViewId) {
+      window.history.pushState({ view: viewId }, "");
+    }
+    currentActiveViewId = viewId;
+
+    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+    const target = document.getElementById(viewId);
+    if (target) {
+      target.classList.add('active');
+      if (viewId === 'view-set-profile') loadProfileData();
+      if (viewId === 'view-set-username') loadUsernameData();
+      if (viewId === 'view-set-pin') loadPinData();
+    }
+  }
+
+  window.addEventListener('popstate', (e) => {
+    // 1. إغلاق عرض الصورة المكبرة إن كان مفتوحاً
+    const viewer = document.getElementById('image-viewer');
+    if (viewer && viewer.classList.contains('active')) {
+      closeImageViewer();
+      window.history.pushState({ view: currentActiveViewId }, "");
+      return;
+    }
+
+    // 2. إغلاق نافذة خيارات الرسالة إن كانت مفتوحة
+    const modal = document.getElementById('message-options-modal');
+    if (modal && modal.classList.contains('active')) {
+      closeMsgOptions();
+      window.history.pushState({ view: currentActiveViewId }, "");
+      return;
+    }
+
+    // 3. إغلاق قائمة الإيموجي أو قائمة المحادثة إن كانت مفتوحة
+    const picker = document.getElementById('emoji-picker');
+    if (picker && picker.style.display === 'grid') {
+      picker.style.display = 'none';
+      window.history.pushState({ view: currentActiveViewId }, "");
+      return;
+    }
+
+    // 4. إيقاف مستمعي المحادثة عند الرجوع منها
+    if (currentActiveViewId === 'view-chat') {
+      cleanupChatState();
+    }
+
+    if (e.state && e.state.view) {
+      navigate(e.state.view, false);
+    } else {
+      if (currentUser) {
+        navigate('view-main', false);
+      } else {
+        navigate('view-login', false);
+      }
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", function() {
+    const savedLang = localStorage.getItem('app_lang') || 'ar';
+    applyLanguage(savedLang);
+
+    if (currentUser) {
+      initUserPresence();
+      window.history.replaceState({ view: 'view-main' }, "");
+      navigate('view-main', false);
+      loadMainChats();
+      checkAndShowInitialSetup();
+    } else {
+      window.history.replaceState({ view: 'view-login' }, "");
+      navigate('view-login', false);
+    }
+  });
+
+  function initUserPresence() {
+    if (!db || !currentUser) return;
+    const userStatusRef = db.ref('status/' + currentUser.username);
+    const connectedRef = db.ref('.info/connected');
+
+    connectedRef.on('value', (snap) => {
+      if (snap.val() === true) {
+        userStatusRef.onDisconnect().set({ online: false, last_changed: firebase.database.ServerValue.TIMESTAMP });
+        userStatusRef.set({ online: true, last_changed: firebase.database.ServerValue.TIMESTAMP });
+        markIncomingMessagesAsDelivered();
+      }
+    });
+  }
+
+  function markIncomingMessagesAsDelivered() {
+    if (!db || !currentUser) return;
+    db.ref('messages').once('value', (snap) => {
+      const msgs = snap.val() || {};
+      Object.keys(msgs).forEach(key => {
+        if (msgs[key].to === currentUser.username && !msgs[key].delivered) {
+          db.ref('messages/' + key).update({ delivered: true });
+        }
+      });
+    });
+  }
+
+  function handleRegister() {
+    const name = document.getElementById('reg-name').value.trim();
+    const username = document.getElementById('reg-username').value.trim().toLowerCase();
+    const password = document.getElementById('reg-password').value;
+    const msg = document.getElementById('reg-msg');
+
+    const usernameRegex = /^[a-z0-9]{3,}$/;
+    if (!usernameRegex.test(username)) {
+      msg.className = "msg-error";
+      msg.textContent = (currentLang === 'ar') 
+        ? "اسم المستخدم يجب أن يكون من 3 أحرف إنجليزية صغيرة أو أرقام على الأقل." 
+        : "Username must be at least 3 lowercase letters or numbers.";
+      return;
+    }
+
+    if (!name || !password) {
+      msg.className = "msg-error";
+      msg.textContent = getTranslation("fill_all_fields");
+      return;
+    }
+
+    if (!db) {
+      msg.className = "msg-error";
+      msg.textContent = "Database disconnected.";
+      return;
+    }
+
+    msg.className = "msg-error";
+    msg.textContent = getTranslation("loading");
+
+    db.ref('users/' + username).once('value', (snapshot) => {
+      if (snapshot.exists()) {
+        msg.className = "msg-error";
+        msg.textContent = getTranslation("username_exists");
+      } else {
+        const newUser = {
+          name: name,
+          username: username,
+          password: password,
+          avatar: "",
+          pin: "",
+          initialSetupCompleted: false,
+          createdAt: Date.now(),
+          blocked: {}
+        };
+
+        db.ref('users/' + username).set(newUser, (error) => {
+          if (error) {
+            msg.className = "msg-error";
+            msg.textContent = error.message;
+          } else {
+            msg.className = "msg-success";
+            msg.textContent = getTranslation("account_created_success");
+            setTimeout(() => {
+              msg.textContent = "";
+              navigate('view-login');
+            }, 1000);
+          }
+        });
+      }
+    });
+  }
+
+  function handleLogin() {
+    const username = document.getElementById('login-username').value.trim().toLowerCase();
+    const password = document.getElementById('login-password').value;
+    const msg = document.getElementById('login-msg');
+
+    if (!username || !password) {
+      msg.textContent = getTranslation("fill_all_fields");
+      return;
+    }
+
+    if (!db) return;
+
+    db.ref('users/' + username).once('value', (snapshot) => {
+      const user = snapshot.val();
+      if (user && user.password === password) {
+        currentUser = user;
+        if (!currentUser.blocked) currentUser.blocked = {};
+        try {
+          localStorage.setItem('chat_current_user', JSON.stringify(currentUser));
+        } catch(e) {}
+        initUserPresence();
+        msg.textContent = "";
+        window.history.replaceState({ view: 'view-main' }, "");
+        navigate('view-main', false);
+        loadMainChats();
+        checkAndShowInitialSetup();
+      } else {
+        msg.textContent = getTranslation("account_not_found");
+      }
+    });
+  }
+
+  function checkAndShowInitialSetup() {
+    if (!currentUser) return;
+    if (currentUser.initialSetupCompleted === true) return;
+
+    const setupModal = document.getElementById('initial-setup-modal');
+    const avatarPreview = document.getElementById('setup-avatar-preview');
+    const pinInput = document.getElementById('setup-pin-input');
+
+    tempSetupAvatar = currentUser.avatar || "";
+    avatarPreview.src = tempSetupAvatar !== "" ? tempSetupAvatar : DEFAULT_AVATAR;
+    pinInput.value = currentUser.pin || "";
+
+    setupModal.classList.add('active');
+  }
+
+  function processImageFile(file, maxDimension, quality, callback) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height *= maxDimension / width;
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width *= maxDimension / height;
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        callback(compressed);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleSetupFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    processImageFile(file, 300, 0.82, function(base64Image) {
+      tempSetupAvatar = base64Image;
+      const preview = document.getElementById('setup-avatar-preview');
+      if (preview) preview.src = base64Image;
+      event.target.value = '';
+    });
+  }
+
+  function saveInitialSetup() {
+    if (!currentUser || !db) return;
+
+    const pinVal = document.getElementById('setup-pin-input').value.trim();
+    const finalAvatar = tempSetupAvatar || currentUser.avatar || "";
+
+    const updates = {
+      avatar: finalAvatar,
+      pin: pinVal,
+      initialSetupCompleted: true
+    };
+
+    db.ref('users/' + currentUser.username).update(updates, (err) => {
+      if (!err) {
+        currentUser.avatar = finalAvatar;
+        currentUser.pin = pinVal;
+        currentUser.initialSetupCompleted = true;
+        try {
+          localStorage.setItem('chat_current_user', JSON.stringify(currentUser));
+        } catch(e){}
+
+        document.getElementById('initial-setup-modal').classList.remove('active');
+        showToast(getTranslation("profile_saved_alert"));
+        loadMainChats();
+      } else {
+        showToast(err.message);
+      }
+    });
+  }
+
+  function logout() {
+    if (db && currentUser) {
+      db.ref('status/' + currentUser.username).set({ online: false });
+    }
+    try {
+      localStorage.removeItem('chat_current_user');
+    } catch(e) {}
+    currentUser = null;
+    window.history.replaceState({ view: 'view-login' }, "");
+    navigate('view-login', false);
+  }
+
+  function loadMainChats() {
+    const chatsContainer = document.getElementById('chats-list');
+    chatsContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">${getTranslation("loading")}</p>`;
+
+    if (!db || !currentUser) return;
+
+    db.ref('messages').on('value', (messagesSnap) => {
+      const messagesData = messagesSnap.val() || {};
+
+      db.ref('users').once('value', (usersSnap) => {
+        const usersData = usersSnap.val() || {};
+        const activeUsernames = new Set();
+        const lastMessages = {};
+        const lastTimestamps = {};
+        const unreadCounts = {};
+
+        Object.values(messagesData).forEach(m => {
+          if (m.deletedFor && m.deletedFor[currentUser.username]) return;
+
+          const isSender = (m.from === currentUser.username);
+          const isReceiver = (m.to === currentUser.username);
+
+          let displayTxt = m.text || '';
+          if (m.deletedForEveryone) {
+            displayTxt = getTranslation("deleted_msg_text");
+          } else if (m.image) {
+            displayTxt = getTranslation("photo_msg_preview");
+          }
+
+          const targetUsername = isSender ? m.to : (isReceiver ? m.from : null);
+          const msgTime = m.timestamp || 0;
+
+          if (targetUsername) {
+            activeUsernames.add(targetUsername);
+
+            if (!lastTimestamps[targetUsername] || msgTime >= lastTimestamps[targetUsername]) {
+              lastTimestamps[targetUsername] = msgTime;
+              lastMessages[targetUsername] = displayTxt;
+            }
+
+            if (isReceiver && !m.read && !m.deletedForEveryone) {
+              unreadCounts[targetUsername] = (unreadCounts[targetUsername] || 0) + 1;
+            }
+          }
+        });
+
+        const sortedUsernames = Array.from(activeUsernames).sort((a, b) => {
+          const timeA = lastTimestamps[a] || 0;
+          const timeB = lastTimestamps[b] || 0;
+          return timeB - timeA;
+        });
+
+        allActiveChatsList = [];
+        sortedUsernames.forEach(uname => {
+          const user = usersData[uname];
+          if (user) {
+            allActiveChatsList.push({
+              user: user,
+              lastMessage: lastMessages[uname] || '',
+              unreadNum: unreadCounts[uname] || 0
+            });
+          }
+        });
+
+        renderChatsList(allActiveChatsList);
+      });
+    });
+  }
+
+  function renderChatsList(items) {
+    const chatsContainer = document.getElementById('chats-list');
+    chatsContainer.innerHTML = '';
+
+    if (items.length === 0) {
+      chatsContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">${getTranslation("no_chats")}</p>`;
+      return;
+    }
+
+    items.forEach(chatObj => {
+      const user = chatObj.user;
+      const item = document.createElement('div');
+      item.className = 'list-item';
+      const avatarSrc = user.avatar && user.avatar.trim() !== "" ? user.avatar : DEFAULT_AVATAR;
+      const badgeHtml = chatObj.unreadNum > 0 ? `<div class="unread-badge">${chatObj.unreadNum}</div>` : '';
+
+      item.innerHTML = `
+        <div class="avatar-wrapper">
+          <img class="avatar" src="${avatarSrc}" onerror="setDefaultAvatar(this)">
+          ${badgeHtml}
+        </div>
+        <div class="item-info">
+          <div class="item-title">${user.name}</div>
+          <div class="item-sub">${chatObj.lastMessage}</div>
+        </div>
+      `;
+      item.onclick = () => openDirectChat(user);
+      chatsContainer.appendChild(item);
+    });
+  }
+
+  function filterChats(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      renderChatsList(allActiveChatsList);
+      return;
+    }
+    const filtered = allActiveChatsList.filter(item => 
+      (item.user.name && item.user.name.toLowerCase().includes(q))
+    );
+    renderChatsList(filtered);
+  }
+
+  function openUsersList() {
+    navigate('view-users');
+    const searchInput = document.getElementById('search-users-input');
+    if (searchInput) searchInput.value = '';
+
+    const container = document.getElementById('all-users-list');
+    container.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">${getTranslation("loading")}</p>`;
+
+    if (!db) return;
+
+    db.ref('users').once('value', (snapshot) => {
+      const users = snapshot.val() || {};
+      
+      let userList = Object.values(users).filter(u => u.username !== currentUser.username);
+
+      userList.sort((a, b) => {
+        const timeA = a.createdAt || 0;
+        const timeB = b.createdAt || 0;
+        return timeB - timeA;
+      });
+
+      allRegisteredUsersList = userList;
+      renderUsersList(allRegisteredUsersList);
+    });
+  }
+
+  function renderUsersList(users) {
+    const container = document.getElementById('all-users-list');
+    container.innerHTML = '';
+
+    if (users.length === 0) {
+      container.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">${getTranslation("no_users")}</p>`;
+      return;
+    }
+
+    const now = Date.now();
+    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+
+    users.forEach(user => {
+      const item = document.createElement('div');
+      item.className = 'list-item';
+      const avatarSrc = user.avatar && user.avatar.trim() !== "" ? user.avatar : DEFAULT_AVATAR;
+
+      const isNew = user.createdAt && (now - user.createdAt <= FORTY_EIGHT_HOURS);
+      const newBadgeHtml = isNew ? `<span class="new-user-badge">${getTranslation("badge_new")}</span>` : '';
+
+      item.innerHTML = `
+        <div class="avatar-wrapper">
+          <img class="avatar" src="${avatarSrc}" onerror="setDefaultAvatar(this)">
+        </div>
+        <div class="item-info">
+          <div class="item-title-row">
+            <div class="item-title">${user.name}</div>
+            ${newBadgeHtml}
+          </div>
+        </div>
+      `;
+      item.onclick = () => initiateChatWithUser(user);
+      container.appendChild(item);
+    });
+  }
+
+  function filterUsers(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      renderUsersList(allRegisteredUsersList);
+      return;
+    }
+    const filtered = allRegisteredUsersList.filter(user => 
+      (user.name && user.name.toLowerCase().includes(q))
+    );
+    renderUsersList(filtered);
+  }
+
+  function initiateChatWithUser(user) {
+    if (user.pin && user.pin.trim() !== "") {
+      tempTargetUser = user;
+      document.getElementById('target-pin').value = '';
+      document.getElementById('pin-prompt-msg').textContent = '';
+      navigate('view-pin-prompt');
+    } else {
+      openDirectChat(user);
+    }
+  }
+
+  function verifyTargetPin() {
+    const enteredPin = document.getElementById('target-pin').value.trim();
+    if (enteredPin === tempTargetUser.pin) {
+      const target = tempTargetUser;
+      tempTargetUser = null;
+      openDirectChat(target);
+    } else {
+      document.getElementById('pin-prompt-msg').textContent = getTranslation("pin_wrong_alert");
+    }
+  }
+
+  function openDirectChat(user) {
+    activeChatUser = user;
+    cancelReply();
+    document.getElementById('chat-dropdown').classList.remove('active');
+    document.getElementById('chat-target-name').textContent = user.name;
+    const targetImg = document.getElementById('chat-target-img');
+    targetImg.src = (user.avatar && user.avatar.trim() !== "") ? user.avatar : DEFAULT_AVATAR;
+
+    markMessagesAsRead(user.username);
+    listenToTargetStatusAndTyping();
+    startRealtimeBlockListener();
+
+    navigate('view-chat');
+    listenForMessages();
+  }
+
+  function cleanupChatState() {
+    setTypingState(false);
+    if (statusListener) statusListener.off();
+    if (typingListener) typingListener.off();
+    if (blockListenerMe) blockListenerMe.off();
+    if (blockListenerThem) blockListenerThem.off();
+    if (chatListener) chatListener.off();
+
+    activeChatUser = null;
+    cancelReply();
+    document.getElementById('chat-dropdown').classList.remove('active');
+  }
+
+  function closeChat() {
+    window.history.back();
+  }
+
+  function listenToTargetStatusAndTyping() {
+    if (!db || !activeChatUser) return;
+    const statusTextEl = document.getElementById('chat-target-status');
+
+    let isOnline = false;
+    let isTyping = false;
+
+    function updateLabel() {
+      if (isTyping) {
+        statusTextEl.textContent = getTranslation("typing_status");
+        statusTextEl.style.color = "#f87171";
+      } else if (isOnline) {
+        statusTextEl.textContent = getTranslation("online_status");
+        statusTextEl.style.color = "#38bdf8";
+      } else {
+        statusTextEl.textContent = "";
+      }
+    }
+
+    if (statusListener) statusListener.off();
+    statusListener = db.ref('status/' + activeChatUser.username);
+    statusListener.on('value', (snap) => {
+      const val = snap.val();
+      isOnline = !!(val && val.online);
+      updateLabel();
+    });
+
+    if (typingListener) typingListener.off();
+    typingListener = db.ref('typing/' + activeChatUser.username + '/' + currentUser.username);
+    typingListener.on('value', (snap) => {
+      isTyping = !!snap.val();
+      updateLabel();
+    });
+  }
+
+  function handleTyping() {
+    if (!db || !currentUser || !activeChatUser) return;
+
+    setTypingState(true);
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      setTypingState(false);
+    }, 1500);
+  }
+
+  function setTypingState(isTyping) {
+    if (!db || !currentUser || !activeChatUser) return;
+    const ref = db.ref('typing/' + currentUser.username + '/' + activeChatUser.username);
+    if (isTyping) {
+      ref.set(true);
+      ref.onDisconnect().remove();
+    } else {
+      ref.remove();
+    }
+  }
+
+  function markMessagesAsRead(senderUsername) {
+    if (!db || !currentUser) return;
+    db.ref('messages').once('value', (snap) => {
+      const msgs = snap.val() || {};
+      Object.keys(msgs).forEach(key => {
+        if (msgs[key].from === senderUsername && msgs[key].to === currentUser.username && (!msgs[key].read || !msgs[key].delivered)) {
+          db.ref('messages/' + key).update({ read: true, delivered: true });
+        }
+      });
+    });
+  }
+
+  function toggleChatMenu() {
+    document.getElementById('chat-dropdown').classList.toggle('active');
+  }
+
+  let isBlockedByMe = false;
+  let isBlockedByThem = false;
+
+  function startRealtimeBlockListener() {
+    if (!db || !currentUser || !activeChatUser) return;
+
+    if (blockListenerMe) blockListenerMe.off();
+    if (blockListenerThem) blockListenerThem.off();
+
+    blockListenerMe = db.ref('users/' + currentUser.username + '/blocked/' + activeChatUser.username);
+    blockListenerMe.on('value', (snap) => {
+      isBlockedByMe = !!snap.val();
+      if (!currentUser.blocked) currentUser.blocked = {};
+      currentUser.blocked[activeChatUser.username] = isBlockedByMe;
+      updateBlockUI();
+    });
+
+    blockListenerThem = db.ref('users/' + activeChatUser.username + '/blocked/' + currentUser.username);
+    blockListenerThem.on('value', (snap) => {
+      isBlockedByThem = !!snap.val();
+      updateBlockUI();
+    });
+  }
+
+  function updateBlockUI() {
+    const blockBtn = document.getElementById('btn-block-toggle');
+    const banner = document.getElementById('blocked-banner');
+    const inputArea = document.getElementById('input-bar-area');
+
+    blockBtn.textContent = isBlockedByMe ? getTranslation("unblock_user_action") : getTranslation("block_user_action");
+    blockBtn.style.color = isBlockedByMe ? "#38bdf8" : "#f87171";
+
+    if (isBlockedByThem) {
+      banner.textContent = getTranslation("blocked_by_them_msg");
+      banner.style.display = 'block';
+      inputArea.style.display = 'none';
+    } else if (isBlockedByMe) {
+      banner.textContent = getTranslation("blocked_by_me_msg");
+      banner.style.display = 'block';
+      inputArea.style.display = 'none';
+    } else {
+      banner.style.display = 'none';
+      inputArea.style.display = 'flex';
+    }
+  }
+
+  function toggleBlockUser() {
+    if (!currentUser || !activeChatUser || !db) return;
+
+    if (isBlockedByMe) {
+      db.ref('users/' + currentUser.username + '/blocked/' + activeChatUser.username).remove();
+      showToast(getTranslation("user_unblocked_alert") + activeChatUser.name);
+    } else {
+      db.ref('users/' + currentUser.username + '/blocked/' + activeChatUser.username).set(true);
+      showToast(getTranslation("user_blocked_alert") + activeChatUser.name);
+    }
+
+    document.getElementById('chat-dropdown').classList.remove('active');
+  }
+
+  function listenForMessages() {
+    if (chatListener) chatListener.off();
+
+    const container = document.getElementById('messages-container');
+    container.innerHTML = '';
+
+    if (!db) return;
+
+    chatListener = db.ref('messages');
+    chatListener.on('value', (snapshot) => {
+      const msgs = snapshot.val() || {};
+      container.innerHTML = '';
+
+      Object.keys(msgs).forEach(key => {
+        const m = msgs[key];
+        m.id = key;
+
+        if (m.deletedFor && m.deletedFor[currentUser.username]) return;
+
+        const isFromMe = (m.from === currentUser.username && m.to === activeChatUser.username);
+        const isToMe = (m.from === activeChatUser.username && m.to === currentUser.username);
+
+        if (isFromMe || isToMe) {
+          if (isToMe && !m.read && !m.deletedForEveryone) {
+            markMessagesAsRead(activeChatUser.username);
+          }
+
+          const bubble = document.createElement('div');
+          bubble.className = `message ${isFromMe ? 'sent' : 'received'} ${m.deletedForEveryone ? 'deleted' : ''}`;
+
+          let quoteHtml = '';
+          if (m.replyTo && !m.deletedForEveryone) {
+            quoteHtml = `
+              <div class="quote-box">
+                <div class="quote-sender">${m.replyTo.senderName}</div>
+                <div class="quote-text">${m.replyTo.text}</div>
+              </div>
+            `;
+          }
+
+          const timeStr = formatMessageTime(m.timestamp);
+
+          let ticksHtml = '';
+          if (isFromMe && !m.deletedForEveryone) {
+            if (m.read) {
+              ticksHtml = `<span class="ticks double-blue">✓✓</span>`;
+            } else if (m.delivered) {
+              ticksHtml = `<span class="ticks double-gray">✓✓</span>`;
+            } else {
+              ticksHtml = `<span class="ticks single">✓</span>`;
+            }
+          }
+
+          let messageContent = '';
+          if (m.deletedForEveryone) {
+            messageContent = `🚫 ${getTranslation("deleted_msg_text")}`;
+          } else {
+            if (m.image) {
+              messageContent += `<img src="${m.image}" class="message-img" onclick="openImageViewer('${m.image}')" alt="Shared image">`;
+            }
+            if (m.text && m.text.trim() !== '') {
+              messageContent += `<div>${m.text}</div>`;
+            }
+          }
+
+          bubble.innerHTML = `
+            ${quoteHtml}
+            ${messageContent}
+            <div class="message-meta">
+              <span>${timeStr}</span>
+              ${ticksHtml}
+            </div>
+          `;
+
+          let pressTimer;
+          const startPress = (e) => {
+            pressTimer = setTimeout(() => {
+              openMsgOptions(m, isFromMe);
+            }, 450);
+          };
+          const endPress = () => clearTimeout(pressTimer);
+
+          bubble.addEventListener('touchstart', startPress, { passive: true });
+          bubble.addEventListener('touchend', endPress);
+          bubble.addEventListener('mousedown', startPress);
+          bubble.addEventListener('mouseup', endPress);
+          bubble.addEventListener('mouseleave', endPress);
+
+          container.appendChild(bubble);
+        }
+      });
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
+  function openImageViewer(src) {
+    const viewer = document.getElementById('image-viewer');
+    const img = document.getElementById('image-viewer-img');
+    img.src = src;
+    viewer.classList.add('active');
+  }
+
+  function closeImageViewer() {
+    const viewer = document.getElementById('image-viewer');
+    viewer.classList.remove('active');
+  }
+
+  function openMsgOptions(msg, isFromMe) {
+    selectedMessageData = msg;
+    const modal = document.getElementById('message-options-modal');
+    const deleteEveryoneBtn = document.getElementById('btn-delete-everyone');
+
+    if (isFromMe && !msg.deletedForEveryone) {
+      deleteEveryoneBtn.style.display = 'block';
+    } else {
+      deleteEveryoneBtn.style.display = 'none';
+    }
+
+    modal.classList.add('active');
+  }
+
+  function closeMsgOptions() {
+    selectedMessageData = null;
+    document.getElementById('message-options-modal').classList.remove('active');
+  }
+
+  function executeReplyFromMenu() {
+    if (!selectedMessageData) return;
+    const isFromMe = (selectedMessageData.from === currentUser.username);
+    setupReply(selectedMessageData, isFromMe ? currentUser.name : activeChatUser.name);
+    closeMsgOptions();
+  }
+
+  function executeDeleteForMe() {
+    if (!selectedMessageData || !db) return;
+    db.ref('messages/' + selectedMessageData.id + '/deletedFor/' + currentUser.username).set(true);
+    closeMsgOptions();
+  }
+
+  function executeDeleteForEveryone() {
+    if (!selectedMessageData || !db) return;
+    db.ref('messages/' + selectedMessageData.id).update({
+      deletedForEveryone: true,
+      text: getTranslation("deleted_msg_text"),
+      image: null
+    });
+    closeMsgOptions();
+  }
+
+  function formatMessageTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+    const ampm = currentLang === 'ar' ? (hours >= 12 ? 'م' : 'ص') : (hours >= 12 ? 'PM' : 'AM');
+    hours = hours % 12 || 12;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+
+  function setupReply(msg, senderName) {
+    let replySnippet = msg.text || '';
+    if (msg.image && !replySnippet) replySnippet = getTranslation("photo_msg_preview");
+
+    replyingToMessage = {
+      text: msg.deletedForEveryone ? getTranslation("deleted_msg_text") : replySnippet,
+      senderName: senderName
+    };
+    document.getElementById('reply-to-user').textContent = getTranslation("reply_to_prefix") + senderName;
+    document.getElementById('reply-to-text').textContent = replyingToMessage.text;
+    document.getElementById('reply-bar').classList.add('active');
+    document.getElementById('chat-input-text').focus();
+  }
+
+  function cancelReply() {
+    replyingToMessage = null;
+    document.getElementById('reply-bar').classList.remove('active');
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('chat-input-text');
+    const text = input.value.trim();
+    if (!text || !activeChatUser || !db || isBlockedByMe || isBlockedByThem) return;
+
+    setTypingState(false);
+
+    db.ref('status/' + activeChatUser.username).once('value', (snap) => {
+      const isTargetOnline = snap.val() && snap.val().online === true;
+
+      const newMsg = {
+        from: currentUser.username,
+        to: activeChatUser.username,
+        text: text,
+        timestamp: Date.now(),
+        delivered: isTargetOnline,
+        read: false
+      };
+
+      if (replyingToMessage) {
+        newMsg.replyTo = replyingToMessage;
+      }
+
+      db.ref('messages').push(newMsg);
+      input.value = '';
+      cancelReply();
+      document.getElementById('emoji-picker').style.display = 'none';
+    });
+  }
+
+  function handleChatImageSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file || !activeChatUser || !db || isBlockedByMe || isBlockedByThem) return;
+
+    processImageFile(file, 800, 0.75, function(base64Image) {
+      db.ref('status/' + activeChatUser.username).once('value', (snap) => {
+        const isTargetOnline = snap.val() && snap.val().online === true;
+
+        const newMsg = {
+          from: currentUser.username,
+          to: activeChatUser.username,
+          image: base64Image,
+          text: '',
+          timestamp: Date.now(),
+          delivered: isTargetOnline,
+          read: false
+        };
+
+        if (replyingToMessage) {
+          newMsg.replyTo = replyingToMessage;
+        }
+
+        db.ref('messages').push(newMsg);
+        cancelReply();
+        event.target.value = '';
+      });
+    });
+  }
+
+  function toggleEmojiPicker() {
+    const picker = document.getElementById('emoji-picker');
+    picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
+  }
+
+  function insertEmoji(emoji) {
+    const input = document.getElementById('chat-input-text');
+    input.value += emoji;
+    input.focus();
+    handleTyping();
+  }
+
+  function loadProfileData() {
+    if (!currentUser) return;
+    
+    document.getElementById('edit-display-name').value = currentUser.name || '';
+    const previewImg = document.getElementById('profile-preview-img');
+    tempProfileAvatar = currentUser.avatar || "";
+    previewImg.src = (tempProfileAvatar && tempProfileAvatar.trim() !== "") ? tempProfileAvatar : DEFAULT_AVATAR;
+
+    if (db) {
+      db.ref('users/' + currentUser.username).once('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          currentUser = data;
+          try { localStorage.setItem('chat_current_user', JSON.stringify(currentUser)); } catch(e){}
+          document.getElementById('edit-display-name').value = currentUser.name || '';
+          tempProfileAvatar = currentUser.avatar || "";
+          if (tempProfileAvatar && tempProfileAvatar.trim() !== "") {
+            previewImg.src = tempProfileAvatar;
+          }
+        }
+      });
+    }
+  }
+
+  function handleFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    processImageFile(file, 300, 0.82, function(base64Image) {
+      tempProfileAvatar = base64Image;
+      const preview = document.getElementById('profile-preview-img');
+      if (preview) preview.src = base64Image;
+      event.target.value = '';
+    });
+  }
+
+  function saveProfile() {
+    const newName = document.getElementById('edit-display-name').value.trim();
+
+    if (!newName) {
+      showToast(getTranslation("fill_all_fields"));
+      return;
+    }
+
+    const finalAvatar = tempProfileAvatar || currentUser.avatar || "";
+    const updates = {
+      name: newName,
+      avatar: finalAvatar
+    };
+
+    if (db) {
+      db.ref('users/' + currentUser.username).update(updates, (err) => {
+        if (!err) {
+          currentUser.name = updates.name;
+          currentUser.avatar = updates.avatar;
+          tempProfileAvatar = updates.avatar;
+          try { localStorage.setItem('chat_current_user', JSON.stringify(currentUser)); } catch(e){}
+          
+          showToast(getTranslation("profile_saved_alert"));
+          setTimeout(() => {
+            window.history.back();
+          }, 800);
+        } else {
+          showToast(err.message);
+        }
+      });
+    }
+  }
+
+  function loadUsernameData() {
+    if (!currentUser) return;
+    document.getElementById('edit-username-input').value = currentUser.username || '';
+  }
+
+  function saveUsername() {
+    const newUsername = document.getElementById('edit-username-input').value.trim().toLowerCase();
+    const msg = document.getElementById('edit-username-msg');
+    const usernameRegex = /^[a-z0-9]{3,}$/;
+
+    if (!usernameRegex.test(newUsername)) {
+      msg.textContent = (currentLang === 'ar') 
+        ? "يجب أن يتكون من 3 أحرف إنجليزية صغيرة أو أرقام على الأقل." 
+        : "Must be at least 3 lowercase characters or numbers.";
+      return;
+    }
+
+    if (newUsername === currentUser.username) {
+      window.history.back();
+      return;
+    }
+
+    if (!db) return;
+
+    db.ref('users/' + newUsername).once('value', (snap) => {
+      if (snap.exists()) {
+        msg.textContent = getTranslation("username_exists");
+      } else {
+        const oldUsername = currentUser.username;
+        const updatedData = { ...currentUser, username: newUsername };
+
+        db.ref('users/' + newUsername).set(updatedData, () => {
+          db.ref('users/' + oldUsername).remove();
+          currentUser = updatedData;
+          try { localStorage.setItem('chat_current_user', JSON.stringify(currentUser)); } catch(e){}
+          showToast(getTranslation("settings_saved_alert"));
+          setTimeout(() => {
+            window.history.back();
+          }, 800);
+        });
+      }
+    });
+  }
+
+  function loadPinData() {
+    if (!currentUser) return;
+    const pinDisplay = document.getElementById('current-pin-display');
+    const pinInput = document.getElementById('edit-pin-input');
+    
+    const currentPin = currentUser.pin && currentUser.pin.trim() !== "" ? currentUser.pin : getTranslation("pin_empty_display");
+    pinDisplay.textContent = currentPin;
+    pinInput.value = "";
+
+    if (db) {
+      db.ref('users/' + currentUser.username + '/pin').once('value', (snap) => {
+        const serverPin = snap.val();
+        if (serverPin && serverPin.trim() !== "") {
+          pinDisplay.textContent = serverPin;
+          currentUser.pin = serverPin;
+        } else {
+          pinDisplay.textContent = getTranslation("pin_empty_display");
+          currentUser.pin = "";
+        }
+        try { localStorage.setItem('chat_current_user', JSON.stringify(currentUser)); } catch(e){}
+      });
+    }
+  }
+
+  function savePin() {
+    const pin = document.getElementById('edit-pin-input').value.trim();
+    if (!db) return;
+
+    db.ref('users/' + currentUser.username).update({ pin: pin }, (err) => {
+      if (!err) {
+        currentUser.pin = pin;
+        try { localStorage.setItem('chat_current_user', JSON.stringify(currentUser)); } catch(e){}
+        loadPinData();
+        showToast(getTranslation("pin_saved_alert"));
+      }
+    });
+  }
+
+  function saveAppSettings() {
+    const lang = document.getElementById('lang-select').value;
+    try {
+      localStorage.setItem('app_lang', lang);
+    } catch(e){}
+
+    applyLanguage(lang);
+    loadMainChats();
+    showToast(getTranslation("settings_saved_alert"));
+    setTimeout(() => {
+      window.history.back();
+    }, 800);
+  }
+</script>
+</body>
+</html>
